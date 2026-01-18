@@ -47,42 +47,42 @@ const App: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const oauthError = urlParams.get('error');
+    const errorMessage = urlParams.get('message');
     
     if (oauthError) {
-      console.error('OAuth error:', oauthError);
+      console.error('OAuth error:', oauthError, errorMessage);
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     
     if (token) {
-      // OAuth callback - verify token and get user info
-      fetch('http://localhost:8080/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          console.log('OAuth response:', data);
-          if (data.success && data.user) {
-            const userData = data.user;
-            const oauthUser: User = {
-              id: userData.id,
-              name: userData.name || userData.email?.split('@')[0] || 'User',
-              email: userData.email,
-              avatar: userData.avatar || userData.picture || `https://api.dicebear.com/7.x/shapes/svg?seed=${userData.email}`,
-              token: token,
-              joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-            };
-            console.log('Created OAuth user:', oauthUser);
-            handleLogin(oauthUser);
-          } else {
-            console.error('OAuth response missing user data:', data);
-          }
-        })
-        .catch(err => console.error('OAuth verification failed:', err))
-        .finally(() => {
-          // Clean URL regardless of result
-          window.history.replaceState({}, document.title, window.location.pathname);
-        });
+      // OAuth callback - decode JWT token directly (no backend call needed)
+      try {
+        // Decode JWT payload (middle part)
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          console.log('OAuth token payload:', payload);
+          
+          const oauthUser: User = {
+            id: payload.id,
+            name: payload.name || payload.email?.split('@')[0] || 'User',
+            email: payload.email,
+            avatar: payload.avatar || payload.picture || `https://api.dicebear.com/7.x/shapes/svg?seed=${payload.email}`,
+            token: token,
+            joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+          };
+          console.log('Created OAuth user:', oauthUser);
+          handleLogin(oauthUser);
+        } else {
+          console.error('Invalid token format');
+        }
+      } catch (err) {
+        console.error('Failed to decode OAuth token:', err);
+      } finally {
+        // Clean URL regardless of result
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
       return;
     }
     
