@@ -141,15 +141,15 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }, 1000);
   };
 
-  // OAuth handlers - redirect to backend OAuth endpoints
+  // OAuth handlers - redirect to Vercel serverless API routes
   const handleGithubAuth = () => {
-    // Redirect to backend GitHub OAuth endpoint
-    window.location.href = 'http://localhost:8080/api/auth/github';
+    // Redirect to GitHub OAuth endpoint (works on both localhost and Vercel)
+    window.location.href = '/api/auth/github';
   };
 
   const handleGoogleAuth = () => {
-    // Redirect to backend Google OAuth endpoint
-    window.location.href = 'http://localhost:8080/api/auth/google';
+    // Redirect to Google OAuth endpoint (works on both localhost and Vercel)
+    window.location.href = '/api/auth/google';
   };
 
   return (
