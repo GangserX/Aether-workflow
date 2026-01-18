@@ -918,19 +918,201 @@ nodeHandlerRegistry.register(NodeType.ACTION_DISCORD, async (node, input, contex
   return { success: true, stub: true };
 });
 
-nodeHandlerRegistry.register(NodeType.ACTION_DATABASE, async (node, input, context) => {
-  const { operation, table, query, values, credentialId } = node.config;
+// ===========================================
+// AI DATA AGENT - Process CSV/JSON with AI
+// ===========================================
 
-  // Stub implementation - would use pg/mysql2/prisma
-  logger.info(`[STUB] Database ${operation} on ${table}`);
+nodeHandlerRegistry.register(NodeType.ACTION_DATABASE, async (node, input, context) => {
+  const { uploadedData, dataQuery, dataLimit, transformQuery, dataSource, manualData, model } = node.config;
   
+  logger.info(`[DATA AGENT] Processing with model: ${model || 'data-ai'}`);
+  
+  // Handle Data Agent (CSV/JSON with AI query)
+  if (model === 'data-ai' || !model) {
+    if (!uploadedData || !Array.isArray(uploadedData) || uploadedData.length === 0) {
+      return {
+        success: false,
+        error: 'No data uploaded. Please upload a CSV or JSON file.',
+        results: []
+      };
+    }
+    
+    const limit = dataLimit || 100;
+    
+    // If no query, return all data
+    if (!dataQuery || dataQuery.trim() === '') {
+      return {
+        success: true,
+        results: uploadedData.slice(0, limit),
+        totalRecords: uploadedData.length,
+        message: `Returned ${Math.min(limit, uploadedData.length)} of ${uploadedData.length} records`
+      };
+    }
+    
+    // Use AI to filter/query the data
+    try {
+      const sampleData = uploadedData.slice(0, 5);
+      const fields = Object.keys(uploadedData[0] || {});
+      
+      const aiPrompt = `You are a data query assistant. Given the following data structure and sample records, generate a JavaScript filter function to match the user's query.
+
+DATA FIELDS: ${fields.join(', ')}
+
+SAMPLE DATA (first 5 records):
+${JSON.stringify(sampleData, null, 2)}
+
+USER QUERY: "${dataQuery}"
+
+IMPORTANT: Return ONLY a valid JavaScript arrow function that can be used with Array.filter().
+The function receives one record object and should return true if the record matches the query.
+Do NOT include any explanation, just the function code.
+
+Examples:
+- Query "age over 30" → (r) => Number(r.age) > 30
+- Query "status is active" → (r) => r.status === 'active' || r.status?.toLowerCase() === 'active'
+- Query "name contains john" → (r) => r.name?.toLowerCase().includes('john')
+- Query "price between 10 and 50" → (r) => Number(r.price) >= 10 && Number(r.price) <= 50
+
+Return the filter function:`;
+
+      const aiResponse = await aiService.chat({
+        prompt: aiPrompt,
+        systemPrompt: 'You are a precise code generator. Return only valid JavaScript code, no explanations.',
+        temperature: 0.1
+      });
+      
+      logger.info(`[DATA AGENT] AI generated filter: ${aiResponse}`);
+      
+      // Extract the function from AI response
+      let filterCode = aiResponse.trim();
+      // Remove markdown code blocks if present
+      filterCode = filterCode.replace(/```javascript|```js|```/g, '').trim();
+      
+      // Try to create and apply the filter function
+      try {
+        // Create filter function from AI response
+        const filterFn = new Function('r', `return (${filterCode})(r)`);
+        
+        // Apply filter to data
+        const filteredData = uploadedData.filter((record: any) => {
+          try {
+            return filterFn(record);
+          } catch (e) {
+            return false;
+          }
+        });
+        
+        return {
+          success: true,
+          results: filteredData.slice(0, limit),
+          totalRecords: filteredData.length,
+          originalCount: uploadedData.length,
+          query: dataQuery,
+          aiFilter: filterCode,
+          message: `Found ${filteredData.length} matching records (showing ${Math.min(limit, filteredData.length)})`
+        };
+      } catch (filterError) {
+        logger.warn(`[DATA AGENT] Filter execution failed, falling back to simple search`);
+        
+        // Fallback: simple text search across all fields
+        const searchTerms = dataQuery.toLowerCase().split(/\s+/);
+        const filteredData = uploadedData.filter((record: any) => {
+          const recordStr = JSON.stringify(record).toLowerCase();
+          return searchTerms.some(term => recordStr.includes(term));
+        });
+        
+        return {
+          success: true,
+          results: filteredData.slice(0, limit),
+          totalRecords: filteredData.length,
+          originalCount: uploadedData.length,
+          query: dataQuery,
+          fallbackSearch: true,
+          message: `Found ${filteredData.length} records containing search terms`
+        };
+      }
+    } catch (aiError: any) {
+      logger.error(`[DATA AGENT] AI query failed: ${aiError.message}`);
+      return {
+        success: false,
+        error: `AI query failed: ${aiError.message}`,
+        results: uploadedData.slice(0, limit)
+      };
+    }
+  }
+  
+  // Handle JSON Transform
+  if (model === 'data-transform') {
+    let sourceData: any[] = [];
+    
+    if (dataSource === 'manual' && manualData) {
+      try {
+        sourceData = JSON.parse(manualData);
+        if (!Array.isArray(sourceData)) sourceData = [sourceData];
+      } catch (e) {
+        return { success: false, error: 'Invalid JSON in manual data input' };
+      }
+    } else if (input && typeof input === 'object') {
+      // Get data from previous node
+      sourceData = input.results || input.data || (Array.isArray(input) ? input : [input]);
+    }
+    
+    if (!sourceData || sourceData.length === 0) {
+      return { success: false, error: 'No data to transform' };
+    }
+    
+    if (!transformQuery || transformQuery.trim() === '') {
+      return { success: true, results: sourceData, message: 'No transformation applied' };
+    }
+    
+    // Use AI to transform the data
+    try {
+      const aiPrompt = `You are a data transformation assistant. Transform the following data according to the user's instructions.
+
+INPUT DATA (${sourceData.length} records):
+${JSON.stringify(sourceData.slice(0, 10), null, 2)}
+${sourceData.length > 10 ? `... and ${sourceData.length - 10} more records` : ''}
+
+TRANSFORMATION INSTRUCTIONS: "${transformQuery}"
+
+Return the transformed data as a valid JSON array. Only return the JSON, no explanation.`;
+
+      const aiResponse = await aiService.chat({
+        prompt: aiPrompt,
+        systemPrompt: 'You are a data transformation expert. Return only valid JSON arrays.',
+        temperature: 0.2
+      });
+      
+      // Parse the AI response as JSON
+      let transformedData: any[];
+      try {
+        let jsonStr = aiResponse.trim();
+        // Extract JSON from markdown if present
+        const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) jsonStr = jsonMatch[1].trim();
+        transformedData = JSON.parse(jsonStr);
+        if (!Array.isArray(transformedData)) transformedData = [transformedData];
+      } catch (parseError) {
+        return { success: false, error: 'AI returned invalid JSON', rawResponse: aiResponse };
+      }
+      
+      return {
+        success: true,
+        results: transformedData,
+        originalCount: sourceData.length,
+        transformedCount: transformedData.length,
+        transformation: transformQuery,
+        message: `Transformed ${sourceData.length} records into ${transformedData.length} records`
+      };
+    } catch (aiError: any) {
+      return { success: false, error: `Transformation failed: ${aiError.message}` };
+    }
+  }
+  
+  // Fallback for unknown model
   return {
-    success: true,
-    stub: true,
-    operation,
-    table,
-    query,
-    values,
+    success: false,
+    error: `Unknown data model: ${model}`
   };
 });
 

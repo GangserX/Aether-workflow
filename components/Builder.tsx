@@ -8,6 +8,11 @@ import { apiService } from '../services/apiService';
 import * as pdfjsLib from 'pdfjs-dist';
 import { jsPDF } from 'jspdf';
 
+// Backend URL - auto-detect production vs development
+const BACKEND_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+  ? 'https://aether-workflow.onrender.com' 
+  : 'http://localhost:8080';
+
 // Handle ESM/CJS interop for PDF.js
 const pdfjs = (pdfjsLib as any).default || pdfjsLib;
 
@@ -668,7 +673,7 @@ When triggered, this node outputs:
 - timestamp: When the request was received
 
 **WEBHOOK URL FORMAT:**
-http://localhost:8080/webhook/{workflowId}/{path}
+${BACKEND_URL}/webhook/{workflowId}/{path}
 
 Use this node as the first node in workflows that need to be triggered by external systems.` 
   },
@@ -874,37 +879,46 @@ Each item becomes a separate execution.
 Use this to process array items individually.` 
   },
 
-  // Database (Orange)
+  // Data Agent (Orange) - AI-powered data processing
   { 
-    category: 'Database', 
-    name: 'Read Database', 
-    model: 'db-read', 
+    category: 'Data', 
+    name: 'Data Agent', 
+    model: 'data-ai', 
     icon: Database, 
     color: 'text-orange-400', 
-    prompt: `This node reads data from a database.
+    prompt: `This AI-powered node processes data from CSV/JSON files.
 
 **CONFIGURATION:**
-- **Table**: Database table to query
-- **Filter**: Query conditions
-- **Limit**: Maximum number of records
-- **Sort**: Sort order
+- **Upload File**: Upload a CSV or JSON file with your data
+- **AI Query**: Ask questions in natural language (e.g., "Find all users over 30", "Get top 5 by sales")
 
-Use this to fetch data from your database.` 
+**EXAMPLES:**
+- "Show me all records where status is active"
+- "Calculate the average age"
+- "Find the top 10 highest values"
+- "Filter rows where price > 100"
+
+The AI will understand your data and return the results!` 
   },
   { 
-    category: 'Database', 
-    name: 'Write Database', 
-    model: 'db-write', 
+    category: 'Data', 
+    name: 'JSON Transform', 
+    model: 'data-transform', 
     icon: Database, 
     color: 'text-orange-400', 
-    prompt: `This node writes data to a database.
+    prompt: `This node transforms JSON data using AI.
 
 **CONFIGURATION:**
-- **Table**: Database table
-- **Operation**: Insert, Update, or Upsert
-- **Data**: The data to write
+- **Input Data**: JSON data from previous node or manual input
+- **Transform Query**: Describe how to transform the data
 
-Use this to save workflow results to a database.` 
+**EXAMPLES:**
+- "Extract only name and email fields"
+- "Group by category and count"
+- "Convert dates to ISO format"
+- "Flatten nested objects"
+
+Perfect for reshaping API responses or processing workflow data!` 
   },
 ];
 
@@ -969,7 +983,7 @@ export const Builder: React.FC<BuilderProps> = ({ onNavigate, nodes, setNodes, e
   
   // System Settings State (persisted via storageService)
   const [systemSettings, setSystemSettings] = useState({
-    apiGateway: 'http://localhost:8080/api/v1',
+    apiGateway: `${BACKEND_URL}/api/v1`,
     environment: 'development' as 'production' | 'staging' | 'development',
     defaultModel: 'mimo-v2-flash',
   });
@@ -1088,7 +1102,7 @@ export const Builder: React.FC<BuilderProps> = ({ onNavigate, nodes, setNodes, e
         
         // Find webhook trigger nodes and show their URLs
         const triggerNode = nodes.find(n => n.type === NodeType.TRIGGER || n.data.model === 'webhook-trigger');
-        const webhookUrl = `http://localhost:8080/webhook/${createdId}/trigger`;
+        const webhookUrl = `${BACKEND_URL}/webhook/${createdId}/trigger`;
         
         addLog('success', `✅ Workflow deployed successfully!`);
         addLog('info', `📌 Workflow ID: ${createdId}`);
@@ -1928,7 +1942,7 @@ Return ONLY valid JSON, no explanations or markdown.`
                         
                         // Fallback: Try backend Resend API (only works for verified emails)
                         try {
-                            const response = await fetch('http://localhost:8080/api/v1/integrations/email/send', {
+                            const response = await fetch(`${BACKEND_URL}/api/v1/integrations/email/send`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -2227,7 +2241,7 @@ Return ONLY valid JSON, no explanations or markdown.`
               <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                 <div className="text-xs text-emerald-400 font-bold mb-1">Webhook URL (after deploy)</div>
                 <div className="text-xs text-gray-400 font-mono break-all">
-                  http://localhost:8080/webhook/{deployedWorkflowId || 'wf_' + Date.now()}/trigger
+                  ${BACKEND_URL}/webhook/{deployedWorkflowId || 'wf_' + Date.now()}/trigger
                 </div>
               </div>
             </div>
@@ -2805,11 +2819,11 @@ Return ONLY valid JSON, no explanations or markdown.`
                                 <span className="font-bold">DEPLOYED</span>
                             </div>
                             <div className="mt-1 text-[9px] text-cream/60 font-mono break-all">
-                                {`http://localhost:8080/webhook/${deployedWorkflowId}/trigger`}
+                                {`${BACKEND_URL}/webhook/${deployedWorkflowId}/trigger`}
                             </div>
                             <button
                                 onClick={() => {
-                                    navigator.clipboard.writeText(`http://localhost:8080/webhook/${deployedWorkflowId}/trigger`);
+                                    navigator.clipboard.writeText(`${BACKEND_URL}/webhook/${deployedWorkflowId}/trigger`);
                                     addLog('info', 'Webhook URL copied to clipboard!');
                                 }}
                                 className="mt-1 text-[9px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
@@ -3024,12 +3038,12 @@ Return ONLY valid JSON, no explanations or markdown.`
                                    <input 
                                      type="text" 
                                      readOnly
-                                     value={`http://localhost:8080/webhook/{workflowId}${selectedNode.data.webhookPath || '/trigger'}`}
+                                     value={`${BACKEND_URL}/webhook/{workflowId}${selectedNode.data.webhookPath || '/trigger'}`}
                                      className="w-full bg-black/70 border border-white/10 p-2 text-xs text-gray-400 rounded-md font-mono"
                                    />
                                    <button 
                                      onClick={() => {
-                                       navigator.clipboard.writeText(`http://localhost:8080/webhook/{workflowId}${selectedNode.data.webhookPath || '/trigger'}`);
+                                       navigator.clipboard.writeText(`${BACKEND_URL}/webhook/{workflowId}${selectedNode.data.webhookPath || '/trigger'}`);
                                        addLog('info', 'Webhook URL copied to clipboard');
                                      }}
                                      className="p-2 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
@@ -3256,55 +3270,153 @@ Return ONLY valid JSON, no explanations or markdown.`
                                </div>
                              )}
                           </>
-                        ) : selectedNode.data.category === 'Database' ? (
-                          // --- DATABASE NODES CONFIGURATION ---
+                        ) : selectedNode.data.category === 'Data' ? (
+                          // --- AI DATA AGENT CONFIGURATION ---
                           <>
-                             <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider">Table Name</label>
-                                <input 
-                                  type="text" 
-                                  value={selectedNode.data.tableName || ''}
-                                  onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, tableName: e.target.value } } : n))}
-                                  placeholder="users"
-                                  className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream focus:border-orange-400 focus:outline-none rounded-md font-mono"
-                                />
-                             </div>
-                             {selectedNode.data.model === 'db-read' && (
+                             {selectedNode.data.model === 'data-ai' && (
                                <>
-                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider">Filter (JSON)</label>
-                                    <textarea 
-                                      value={selectedNode.data.dbFilter || ''}
-                                      onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dbFilter: e.target.value } } : n))}
-                                      rows={2}
-                                      placeholder='{"status": "active"}'
-                                      className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream/80 focus:border-orange-400 focus:outline-none resize-none font-mono rounded-md"
-                                    />
+                                 {/* File Upload Section */}
+                                 <div className="space-y-2 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                                   <label className="text-[10px] font-bold text-orange-300 uppercase tracking-wider flex items-center gap-2">
+                                     <span>📁</span> Upload Data File (CSV/JSON)
+                                   </label>
+                                   <input
+                                     type="file"
+                                     accept=".csv,.json"
+                                     onChange={async (e) => {
+                                       if (e.target.files && e.target.files[0]) {
+                                         const file = e.target.files[0];
+                                         addLog('info', `Processing file: ${file.name}`, selectedNode.id);
+                                         
+                                         const reader = new FileReader();
+                                         reader.onload = async (event) => {
+                                           try {
+                                             const content = event.target?.result as string;
+                                             let parsedData: any[] = [];
+                                             
+                                             if (file.name.endsWith('.json')) {
+                                               parsedData = JSON.parse(content);
+                                               if (!Array.isArray(parsedData)) parsedData = [parsedData];
+                                             } else if (file.name.endsWith('.csv')) {
+                                               // Simple CSV parser
+                                               const lines = content.split('\n').filter(l => l.trim());
+                                               const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                                               parsedData = lines.slice(1).map(line => {
+                                                 const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+                                                 return headers.reduce((obj: any, header, i) => {
+                                                   obj[header] = values[i] || '';
+                                                   return obj;
+                                                 }, {});
+                                               });
+                                             }
+                                             
+                                             setNodes(nodes.map(n => n.id === selectedNode.id ? { 
+                                               ...n, 
+                                               data: { 
+                                                 ...n.data, 
+                                                 uploadedData: parsedData,
+                                                 uploadedFileName: file.name,
+                                                 dataPreview: parsedData.slice(0, 3)
+                                               } 
+                                             } : n));
+                                             
+                                             addLog('success', `✅ Loaded ${parsedData.length} records from ${file.name}`, selectedNode.id);
+                                           } catch (err) {
+                                             addLog('error', `Failed to parse file: ${err}`, selectedNode.id);
+                                           }
+                                         };
+                                         reader.readAsText(file);
+                                       }
+                                     }}
+                                     className="w-full text-xs text-cream file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-orange-500/20 file:text-orange-300 hover:file:bg-orange-500/30 cursor-pointer"
+                                   />
+                                   {selectedNode.data.uploadedFileName && (
+                                     <div className="mt-2 p-2 bg-black/30 rounded text-[10px]">
+                                       <div className="text-orange-300 font-medium">📄 {selectedNode.data.uploadedFileName}</div>
+                                       <div className="text-cream/50 mt-1">
+                                         {selectedNode.data.uploadedData?.length || 0} records loaded
+                                       </div>
+                                       {selectedNode.data.dataPreview && selectedNode.data.dataPreview.length > 0 && (
+                                         <div className="mt-2 text-cream/40">
+                                           <div className="font-medium text-cream/60">Fields: {Object.keys(selectedNode.data.dataPreview[0]).join(', ')}</div>
+                                         </div>
+                                       )}
+                                     </div>
+                                   )}
                                  </div>
+                                 
+                                 {/* AI Query Input */}
                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider">Limit</label>
-                                    <input 
-                                      type="number" 
-                                      value={selectedNode.data.dbLimit || 100}
-                                      onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dbLimit: parseInt(e.target.value) } } : n))}
-                                      className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream focus:border-orange-400 focus:outline-none rounded-md font-mono"
-                                    />
+                                   <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider flex items-center gap-2">
+                                     <span>🤖</span> AI Query (Natural Language)
+                                   </label>
+                                   <textarea 
+                                     value={selectedNode.data.dataQuery || ''}
+                                     onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dataQuery: e.target.value } } : n))}
+                                     rows={3}
+                                     placeholder="e.g., Find all users where age > 25 and status is active"
+                                     className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream/80 focus:border-orange-400 focus:outline-none resize-none rounded-md"
+                                   />
+                                   <p className="text-[9px] text-gray-500">💡 Ask in plain English - AI will filter/transform your data</p>
+                                 </div>
+
+                                 {/* Limit */}
+                                 <div className="space-y-1">
+                                   <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider">Max Results</label>
+                                   <input 
+                                     type="number" 
+                                     value={selectedNode.data.dataLimit || 100}
+                                     onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dataLimit: parseInt(e.target.value) } } : n))}
+                                     className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream focus:border-orange-400 focus:outline-none rounded-md font-mono"
+                                   />
                                  </div>
                                </>
                              )}
-                             {selectedNode.data.model === 'db-write' && (
-                               <div className="space-y-1">
-                                  <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider">Operation</label>
-                                  <select 
-                                    value={selectedNode.data.dbOperation || 'insert'}
-                                    onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dbOperation: e.target.value } } : n))}
-                                    className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream focus:border-orange-400 focus:outline-none rounded-md"
-                                  >
-                                    <option value="insert">Insert</option>
-                                    <option value="update">Update</option>
-                                    <option value="upsert">Upsert</option>
-                                  </select>
-                               </div>
+                             
+                             {selectedNode.data.model === 'data-transform' && (
+                               <>
+                                 {/* Transform Query */}
+                                 <div className="space-y-2 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                                   <label className="text-[10px] font-bold text-orange-300 uppercase tracking-wider flex items-center gap-2">
+                                     <span>🔄</span> Input Data Source
+                                   </label>
+                                   <select
+                                     value={selectedNode.data.dataSource || 'previous'}
+                                     onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dataSource: e.target.value } } : n))}
+                                     className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream focus:border-orange-400 focus:outline-none rounded-md"
+                                   >
+                                     <option value="previous">From Previous Node</option>
+                                     <option value="manual">Manual JSON Input</option>
+                                   </select>
+                                 </div>
+                                 
+                                 {selectedNode.data.dataSource === 'manual' && (
+                                   <div className="space-y-1">
+                                     <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider">JSON Data</label>
+                                     <textarea 
+                                       value={selectedNode.data.manualData || ''}
+                                       onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, manualData: e.target.value } } : n))}
+                                       rows={4}
+                                       placeholder='[{"name": "John", "age": 30}]'
+                                       className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream/80 focus:border-orange-400 focus:outline-none resize-none font-mono rounded-md"
+                                     />
+                                   </div>
+                                 )}
+                                 
+                                 <div className="space-y-1">
+                                   <label className="text-[10px] font-bold text-cream/50 uppercase tracking-wider flex items-center gap-2">
+                                     <span>🤖</span> Transform Instructions
+                                   </label>
+                                   <textarea 
+                                     value={selectedNode.data.transformQuery || ''}
+                                     onChange={(e) => setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, transformQuery: e.target.value } } : n))}
+                                     rows={3}
+                                     placeholder="e.g., Extract only name and email, then sort by name"
+                                     className="w-full bg-black/50 border border-white/10 p-2 text-xs text-cream/80 focus:border-orange-400 focus:outline-none resize-none rounded-md"
+                                   />
+                                   <p className="text-[9px] text-gray-500">💡 Describe how to reshape or transform the data</p>
+                                 </div>
+                               </>
                              )}
                           </>
                         ) : selectedNode.type === NodeType.AGENT ? (

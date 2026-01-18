@@ -6,6 +6,11 @@
 import React, { useState } from 'react';
 import { Sparkles, Send, Loader2, Wand2, Copy, Check, X, ChevronDown, ChevronUp, Zap, Bot, FileText, Clock, Mail, Database, Globe, Code, GitBranch } from 'lucide-react';
 
+// Backend URL - auto-detect production vs development
+const BACKEND_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+  ? 'https://aether-workflow.onrender.com' 
+  : 'http://localhost:8080';
+
 interface AIWorkflowGeneratorProps {
   onWorkflowGenerated: (workflow: {
     name: string;
@@ -70,7 +75,7 @@ export const AIWorkflowGenerator: React.FC<AIWorkflowGeneratorProps> = ({
 
     try {
       // Call the AI service
-      const response = await fetch('http://localhost:8080/api/v1/ai/generate-workflow', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/ai/generate-workflow`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

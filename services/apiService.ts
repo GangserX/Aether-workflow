@@ -3,8 +3,11 @@
 // Communication with backend
 // ===========================================
 
-// @ts-ignore - Vite provides this at runtime
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:8080';
+// Detect production vs development
+const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+const API_BASE_URL = isProduction 
+  ? 'https://aether-workflow.onrender.com' 
+  : 'http://localhost:8080';
 
 interface ApiResponse<T = any> {
   success: boolean;
