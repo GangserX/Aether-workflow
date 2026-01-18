@@ -1,22 +1,24 @@
 // Vercel Serverless Function - GitHub OAuth Callback
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import crypto from 'crypto';
 
-// Simple JWT creation (for serverless - no external deps needed)
-function createToken(payload: any, secret: string): string {
+// Simple JWT creation using dynamic import (works in Vercel)
+async function createToken(payload: any, secret: string): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' };
   
-  const base64UrlEncode = (obj: any) => {
-    const str = JSON.stringify(obj);
-    const base64 = Buffer.from(str).toString('base64');
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const base64UrlEncode = (str: string) => {
+    return Buffer.from(str).toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
   };
   
-  const headerEncoded = base64UrlEncode(header);
-  const payloadEncoded = base64UrlEncode({ ...payload, exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) });
+  const headerEncoded = base64UrlEncode(JSON.stringify(header));
+  const payloadWithExp = { ...payload, exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) };
+  const payloadEncoded = base64UrlEncode(JSON.stringify(payloadWithExp));
   
-  const signature = crypto
-    .createHmac('sha256', secret)
+  // Create signature using Node.js crypto (dynamic import for Vercel)
+  const { createHmac } = await import('node:crypto');
+  const signature = createHmac('sha256', secret)
     .update(`${headerEncoded}.${payloadEncoded}`)
     .digest('base64')
     .replace(/\+/g, '-')
@@ -90,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Create JWT token
     const jwtSecret = process.env.JWT_SECRET || 'aether-jwt-secret-vercel';
-    const token = createToken(user, jwtSecret);
+    const token = await createToken(user, jwtSecret);
 
     // Redirect to frontend with token
     res.redirect(302, `${frontendUrl}?auth=success&token=${token}&provider=github`);
