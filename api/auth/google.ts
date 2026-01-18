@@ -4,11 +4,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 export default function handler(req: VercelRequest, res: VercelResponse) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   
-  // Determine the base URL dynamically
-  const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const baseUrl = `${protocol}://${host}`;
-  
+  // Use hardcoded URL for Vercel deployment
+  const baseUrl = 'https://aether-workflow.vercel.app';
   const redirectUri = `${baseUrl}/api/auth/google/callback`;
   
   const scopes = [

@@ -30,11 +30,9 @@ function createToken(payload: any, secret: string): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { code } = req.query;
   
-  // Determine the base URL dynamically
-  const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const baseUrl = `${protocol}://${host}`;
-  const frontendUrl = process.env.FRONTEND_URL || baseUrl;
+  // Use hardcoded URL for Vercel deployment
+  const baseUrl = 'https://aether-workflow.vercel.app';
+  const frontendUrl = baseUrl;
   
   if (!code) {
     return res.redirect(302, `${frontendUrl}?error=google_auth_failed&message=No+code+provided`);
@@ -43,14 +41,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
 
+    // Check if env vars exist
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      throw new Error('Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET env vars');
+    }
+
     // Exchange code for access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
         client_id: process.env.GOOGLE_CLIENT_ID,
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        code,
+        code: code as string,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
       }),
@@ -59,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const tokenData = await tokenResponse.json();
     
     if (!tokenData.access_token) {
-      throw new Error('No access token received from Google');
+      throw new Error(`Google token error: ${JSON.stringify(tokenData)}`);
     }
 
     // Get user info from Google
