@@ -1,5 +1,6 @@
 // Vercel Serverless Function - GitHub OAuth Callback
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import crypto from 'crypto';
 
 // Simple JWT creation (for serverless - no external deps needed)
 function createToken(payload: any, secret: string): string {
@@ -14,7 +15,6 @@ function createToken(payload: any, secret: string): string {
   const headerEncoded = base64UrlEncode(header);
   const payloadEncoded = base64UrlEncode({ ...payload, exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) });
   
-  const crypto = require('crypto');
   const signature = crypto
     .createHmac('sha256', secret)
     .update(`${headerEncoded}.${payloadEncoded}`)
