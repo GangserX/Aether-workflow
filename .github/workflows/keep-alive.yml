@@ -1,0 +1,51 @@
+# ===========================================
+# KEEP-ALIVE PING - Prevent Render Free Tier Spin-Down
+# Pings the backend every 14 minutes to keep it awake
+# ===========================================
+
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Run every 14 minutes (under 15 min spin-down threshold)
+    - cron: '*/14 * * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping Backend Health Endpoint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Ping Render Backend
+        run: |
+          echo "🏓 Pinging Aether Backend to keep it alive..."
+          echo "⏰ Time: $(date -u)"
+          
+          # Replace with your actual Render backend URL
+          BACKEND_URL="${{ secrets.RENDER_BACKEND_URL }}"
+          
+          # Fallback URL if secret is not set
+          if [ -z "$BACKEND_URL" ]; then
+            BACKEND_URL="https://your-render-app.onrender.com"
+            echo "⚠️ Warning: RENDER_BACKEND_URL secret not set, using placeholder"
+          fi
+          
+          # Ping the health endpoint
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" --max-time 60)
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Backend is alive! Status: $response"
+          else
+            echo "⚠️ Backend responded with status: $response"
+            # Retry once after 10 seconds
+            sleep 10
+            retry_response=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" --max-time 60)
+            echo "🔄 Retry response: $retry_response"
+          fi
+          
+      - name: Log Success
+        run: |
+          echo "🎯 Keep-alive ping completed at $(date -u)"

@@ -18,6 +18,10 @@ const envSchema = z.object({
 
   // Internal Webhook Base URLs (Mocked for this implementation)
   WEBHOOK_BASE_URL: z.string().default('http://internal-agent-cluster.local/v1'),
+  
+  // Render Keep-Alive (set to your deployed Render URL in production)
+  RENDER_EXTERNAL_URL: z.string().optional(),
+  BACKEND_URL: z.string().optional(),
 });
 
 export const config = envSchema.parse(process.env);

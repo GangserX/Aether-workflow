@@ -7,6 +7,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import axios from 'axios';
 import { config } from './config/env';
 import { authenticate, apiLimiter, AuthenticatedRequest } from './middleware/security';
 import { logger } from './utils/logger';
@@ -690,6 +691,31 @@ app.listen(PORT, async () => {
     logger.warn('Job queue not initialized - using synchronous execution');
   }
 
+  // ===========================================
+  // KEEP-ALIVE PING SERVICE (Render Free Tier)
+  // Prevents spin-down after 15 minutes of inactivity
+  // ===========================================
+  const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL;
+  const PING_INTERVAL = 10 * 60 * 1000; // 10 minutes (under 15 min threshold)
+
+  if (RENDER_URL && config.NODE_ENV === 'production') {
+    const keepAlive = () => {
+      axios.get(`${RENDER_URL}/health`)
+        .then((res) => {
+          logger.info(`[Keep-Alive] Ping successful at ${new Date().toISOString()} - Status: ${res.status}`);
+        })
+        .catch((err) => {
+          logger.warn(`[Keep-Alive] Ping failed: ${err.message}`);
+        });
+    };
+
+    // Initial ping after 1 minute, then every 10 minutes
+    setTimeout(keepAlive, 60 * 1000);
+    setInterval(keepAlive, PING_INTERVAL);
+    
+    logger.info(`[Keep-Alive] Service enabled - Pinging ${RENDER_URL}/health every 10 minutes`);
+  }
+
   console.log(`
   ┌──────────────────────────────────────────────────────────┐
   │  🚀 Aether Workflow Engine is running                     │
@@ -706,6 +732,7 @@ app.listen(PORT, async () => {
   │    ✓ Credential Management                               │
   │    ✓ AI Workflow Generator                               │
   │    ${jobQueueService.isAvailable() ? '✓' : '○'} Job Queue (BullMQ)                              │
+  │    ${RENDER_URL ? '✓' : '○'} Keep-Alive Ping Service                          │
   └──────────────────────────────────────────────────────────┘
   `);
 });
