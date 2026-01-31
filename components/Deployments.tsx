@@ -8,11 +8,6 @@ import {
 import { View, WorkflowNode, WorkflowEdge, NodeType, User } from '../types';
 import { storageService, Workflow, Deployment } from '../services/storageService';
 
-// Backend URL - auto-detect production vs development
-const BACKEND_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-  ? 'https://aether-workflow.onrender.com' 
-  : 'http://localhost:8080';
-
 interface DeploymentsProps {
   onNavigate: (view: View) => void;
   nodes: WorkflowNode[];
@@ -121,14 +116,14 @@ export const Deployments: React.FC<DeploymentsProps> = ({ onNavigate, nodes, edg
   };
 
   const handleCopyEndpoint = (endpoint: string, deploymentId: string) => {
-    const fullUrl = `${BACKEND_URL}${endpoint}`;
+    const fullUrl = `http://localhost:8080${endpoint}`;
     navigator.clipboard.writeText(fullUrl);
     setCopiedEndpoint(deploymentId);
     setTimeout(() => setCopiedEndpoint(null), 2000);
   };
 
   const handleTestEndpoint = async (deployment: Deployment) => {
-    const fullUrl = `${BACKEND_URL}${deployment.endpoint}`;
+    const fullUrl = `http://localhost:8080${deployment.endpoint}`;
     try {
       const response = await fetch(fullUrl, {
         method: 'POST',
